@@ -1,5 +1,3 @@
-// backend/src/app/api/test/route.ts
-
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -8,5 +6,22 @@ export async function POST(req: Request) {
 
   console.log("Přijato z Webflow:", name, email);
 
-  return NextResponse.json({ message: `Nazdar ${name}, tvůj email je ${email}` });
+  const response = NextResponse.json({
+    message: `Nazdar ${name}, tvůj email je ${email}`
+  });
+
+  // Přidání CORS hlaviček
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+
+  return response;
+}
+
+// CORS preflight (pro Webflow)
+export function OPTIONS() {
+  const response = new NextResponse(null, { status: 204 });
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return response;
 }
