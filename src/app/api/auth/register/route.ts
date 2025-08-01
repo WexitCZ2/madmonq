@@ -35,8 +35,13 @@ export async function POST(req: Request) {
       }
     });
 
-  } catch (err: any) {
-    console.error("❌ Serverová chyba:", err.message || err);
+} catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error("❌ Serverová chyba:", err.message);
+    } else {
+      console.error("❌ Neznámá chyba:", err);
+    }
+
     return new Response(JSON.stringify({ error: "Chyba při zpracování požadavku" }), {
       status: 500,
       headers: {
