@@ -1,51 +1,43 @@
+import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { NextRequest } from 'next/server';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-07-30.basil',
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: '2025-07-30.basil',
+});
+
+export async function POST(req: Request) {
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    mode: 'payment',
+    line_items: [
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: 'Členství – Madmonq Gym',
+          },
+          unit_amount: 9900, // 99.00 USD
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: 'https://madmonq.cz/?success=true',
+    cancel_url: 'https://madmonq.cz/?canceled=true',
   });
 
-export async function POST(req: NextRequest) {
-  const origin = req.headers.get('origin') || 'https://madmonq.cz';
+  // ✅ VRAŤ S CORS HLAVIČKOU:
+  const response = NextResponse.json({ url: session.url });
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return response;
+}
 
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'czk',
-            product_data: {
-              name: 'Členství Madmonq Alpha',
-              description: 'Neomezený vstup, QR systém, statistiky',
-            },
-            unit_amount: 19900, // cena v haléřích: 199.00 Kč
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${origin}/?success=true`,
-      cancel_url: `${origin}/?canceled=true`,
-    });
-
-    return new Response(JSON.stringify({ url: session.url }), {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Content-Type': 'application/json',
-      },
-    });
-
-  } catch (err: any) {
-    console.error("❌ Stripe chyba:", err.message);
-
-    return new Response(JSON.stringify({ error: 'Nepodařilo se vytvořit session' }), {
-      status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Content-Type': 'application/json',
-      },
-    });
-  }
+// ✅ Pokud použiješ i OPTIONS (preflight), můžeš přidat:
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 204 });
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return response;
 }
