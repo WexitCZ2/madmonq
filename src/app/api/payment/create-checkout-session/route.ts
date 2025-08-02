@@ -1,43 +1,43 @@
-import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-// Inicializuj Stripe s tajným klíčem z environment proměnné
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-// Funkce na POST – vytvoření checkout session
-export async function POST() {
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: 'Madmonq členství',
-          },
-          unit_amount: 9900, // 99.00 USD
-        },
-        quantity: 1,
-      },
-    ],
-    success_url: 'https://madmonq.cz?success=true',
-    cancel_url: 'https://madmonq.cz?canceled=true',
-  });
+console.log("🧪 Stripe key z prostředí:", stripeSecretKey); // ✅ Bonus pro ověření
 
-  // Vrať URL do frontend fetchu a přidej CORS hlavičky
-  const response = NextResponse.json({ url: session.url });
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  return response;
+if (!stripeSecretKey) {
+  throw new Error("❌ STRIPE_SECRET_KEY není definován v prostředí!");
 }
 
-// Funkce na OPTIONS – potřebné kvůli CORS
-export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  return response;
+const stripe = new Stripe(stripeSecretKey);
+
+export async function POST() {
+  console.log("✅ Backend přijal požadavek na vytvoření checkout session");
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Madmonq členství',
+            },
+            unit_amount: 9900, // = $99.00
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: 'https://madmonq.cz?success=true',
+      cancel_url: 'https://madmonq.cz?canceled=true',
+    });
+
+    console.log("✅ Checkout session vytvořena:", session.url);
+
+    return Response.json({ url: session.url });
+  } catch (error: any) {
+    console.error("❌ Chyba při vytváření checkout session:", error.message);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
 }
