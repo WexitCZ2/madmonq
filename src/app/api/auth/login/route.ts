@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { NextResponse } from 'next/server';
+import { } from 'next/server';
 
 export async function POST(req: Request) {
   const origin = req.headers.get('origin') || '*';
