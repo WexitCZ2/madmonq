@@ -2,7 +2,6 @@ import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
 export async function POST() {
-  // ✅ Kontrola, že proměnná existuje
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecretKey) {
     console.error("❌ STRIPE_SECRET_KEY není definován v prostředí!");
@@ -15,13 +14,9 @@ export async function POST() {
     });
   }
 
-  // ✅ Inicializace Stripe
-  const stripe = new Stripe(stripeSecretKey, {
-    // apiVersion není povinný, pokud nechceš specifickou verzi
-  });
+  const stripe = new Stripe(stripeSecretKey);
 
   try {
-    // ✅ Vytvoření platby
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -31,7 +26,7 @@ export async function POST() {
             product_data: {
               name: 'Madmonq produkt',
             },
-            unit_amount: 1500, // $15.00
+            unit_amount: 1500,
           },
           quantity: 1,
         },
@@ -58,4 +53,16 @@ export async function POST() {
       },
     });
   }
+}
+
+// 🔧 Přidání podpory pro CORS preflight request (nutné pro Webflow fetch)
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }
