@@ -37,9 +37,18 @@ export async function POST() {
         'Content-Type': 'application/json',
       },
     });
-  } catch (error: any) {
-    console.error('❌ Stripe error:', error.message);
-    return new NextResponse(JSON.stringify({ error: error.message }), {
+} catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('❌ Stripe error:', error.message);
+      return new NextResponse(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+      });
+    }
+    return new NextResponse(JSON.stringify({ error: 'Neznámá chyba' }), {
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
