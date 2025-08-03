@@ -20,7 +20,7 @@ export async function POST() {
             product_data: {
               name: 'Madmonq produkt',
             },
-            unit_amount: 1500, // 15.00 USD
+            unit_amount: 1500,
           },
           quantity: 1,
         },
@@ -30,9 +30,21 @@ export async function POST() {
       cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io/cancel',
     });
 
-    return NextResponse.json({ url: session.url });
+    return new NextResponse(JSON.stringify({ url: session.url }), {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json',
+      },
+    });
   } catch (error: any) {
     console.error('❌ Stripe error:', error.message);
-    return NextResponse.json({ error: 'Chyba při vytváření session' }, { status: 500 });
+    return new NextResponse(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json',
+      },
+    });
   }
 }
