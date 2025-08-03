@@ -1,16 +1,27 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-
-if (!stripeSecretKey) {
-  throw new Error('❌ STRIPE_SECRET_KEY není definován v prostředí!');
-}
-
-const stripe = new Stripe(stripeSecretKey);
-
 export async function POST() {
+  // ✅ Kontrola, že proměnná existuje
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    console.error("❌ STRIPE_SECRET_KEY není definován v prostředí!");
+    return new NextResponse(JSON.stringify({ error: 'Stripe key missing' }), {
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  // ✅ Inicializace Stripe
+  const stripe = new Stripe(stripeSecretKey, {
+    // apiVersion není povinný, pokud nechceš specifickou verzi
+  });
+
   try {
+    // ✅ Vytvoření platby
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -20,7 +31,7 @@ export async function POST() {
             product_data: {
               name: 'Madmonq produkt',
             },
-            unit_amount: 1500,
+            unit_amount: 1500, // $15.00
           },
           quantity: 1,
         },
@@ -37,18 +48,9 @@ export async function POST() {
         'Content-Type': 'application/json',
       },
     });
-} catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error('❌ Stripe error:', error.message);
-      return new NextResponse(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-      });
-    }
-    return new NextResponse(JSON.stringify({ error: 'Neznámá chyba' }), {
+  } catch (error) {
+    console.error("❌ Stripe Error:", error);
+    return new NextResponse(JSON.stringify({ error: 'Payment failed' }), {
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
