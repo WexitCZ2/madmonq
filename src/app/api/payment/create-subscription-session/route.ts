@@ -1,5 +1,3 @@
-// src/app/api/payment/create-subscription-session/route.ts
-
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
@@ -8,8 +6,8 @@ export async function POST() {
   const subscriptionPriceId = process.env.STRIPE_SUBSCRIPTION_PRICE_ID;
 
   if (!stripeSecretKey || !subscriptionPriceId) {
-    console.error("❌ Chybí STRIPE_SECRET_KEY nebo STRIPE_SUBSCRIPTION_PRICE_ID v prostředí");
-    return new NextResponse(JSON.stringify({ error: 'Chybí Stripe konfigurace' }), {
+    console.error("❌ STRIPE_SECRET_KEY nebo STRIPE_SUBSCRIPTION_PRICE_ID nejsou definované!");
+    return new NextResponse(JSON.stringify({ error: 'Stripe konfigurace chybí' }), {
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -22,8 +20,8 @@ export async function POST() {
 
   try {
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       mode: 'subscription',
+      payment_method_types: ['card'],
       line_items: [
         {
           price: subscriptionPriceId,
@@ -41,9 +39,14 @@ export async function POST() {
         'Content-Type': 'application/json',
       },
     });
-  } catch (error: any) {
-    console.error("❌ Stripe error:", error.message);
-    return new NextResponse(JSON.stringify({ error: 'Chyba při vytváření předplatného' }), {
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error("❌ Stripe chyba:", err.message);
+    } else {
+      console.error("❌ Neznámá chyba při vytváření předplatného:", err);
+    }
+
+    return new NextResponse(JSON.stringify({ error: 'Nepodařilo se vytvořit předplatné' }), {
       status: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
