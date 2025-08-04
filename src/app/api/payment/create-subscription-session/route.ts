@@ -1,21 +1,17 @@
-// src/app/api/payment/create-subscription-session/route.ts
-
 import Stripe from 'stripe';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: Request) {
+// POST request (vytvoření subscription)
+export async function POST(req: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  const priceBasic = process.env.STRIPE_PRICE_ID_BASIC;
-  const pricePremium = process.env.STRIPE_PRICE_ID_PREMIUM;
+  const basicPriceId = process.env.STRIPE_PRICE_ID_BASIC;
+  const premiumPriceId = process.env.STRIPE_PRICE_ID_PREMIUM;
 
-  if (!stripeSecretKey || !priceBasic || !pricePremium) {
-    console.error("❌ Některý z Stripe klíčů chybí");
-    return new NextResponse(JSON.stringify({ error: 'Stripe konfigurace chybí' }), {
+  if (!stripeSecretKey || !basicPriceId || !premiumPriceId) {
+    console.error("❌ Chybí Stripe klíče nebo Price ID");
+    return new NextResponse(JSON.stringify({ error: 'Stripe configuration missing' }), {
       status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -23,43 +19,47 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { email, plan } = body as { email: string; plan: 'basic' | 'premium' };
+    const { plan } = body as { plan: 'basic' | 'premium' };
 
-    const priceId = plan === 'basic' ? priceBasic : pricePremium;
+    const selectedPriceId = plan === 'premium' ? premiumPriceId : basicPriceId;
 
-    // ✅ Vytvoření zákazníka
-    const customer = await stripe.customers.create({ email });
-
-    // ✅ Vytvoření session
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
       payment_method_types: ['card'],
-      customer: customer.id,
       line_items: [
         {
-          price: priceId,
+          price: selectedPriceId,
           quantity: 1,
         },
       ],
+      mode: 'subscription',
       success_url: 'https://highs-wondrous-site-2bcc15.webflow.io/success',
       cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io/cancel',
     });
 
     return new NextResponse(JSON.stringify({ url: session.url }), {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     });
   } catch (error) {
-    console.error("❌ Stripe Error:", error);
-    return new NextResponse(JSON.stringify({ error: 'Chyba při vytváření subscription session' }), {
+    console.error("❌ Stripe error:", error);
+    return new NextResponse(JSON.stringify({ error: 'Subscription failed' }), {
       status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     });
   }
 }
+
+// CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};
