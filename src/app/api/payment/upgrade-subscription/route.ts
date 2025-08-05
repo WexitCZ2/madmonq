@@ -1,47 +1,62 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY!;
-const stripe = new Stripe(stripeSecretKey);
-
 export async function POST(req: Request) {
-  try {
-    const { subscriptionId } = await req.json();
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const priceIdPremium = process.env.STRIPE_PRICE_ID_PREMIUM;
 
-    await stripe.subscriptions.update(subscriptionId, {
+  if (!stripeSecretKey || !priceIdPremium) {
+    return new NextResponse(JSON.stringify({ error: 'Missing Stripe keys' }), {
+      status: 500,
+      headers: corsHeaders,
+    });
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+  const { subscriptionId } = await req.json();
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    const updated = await stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: false,
       proration_behavior: 'create_prorations',
-      items: [{
-        id: (await stripe.subscriptions.retrieve(subscriptionId)).items.data[0].id,
-        price: process.env.STRIPE_PRICE_ID_PREMIUM!,
-      }],
+      items: [
+        {
+          id: subscription.items.data[0].id,
+          price: priceIdPremium,
+        },
+      ],
     });
 
-    return NextResponse.json({ message: 'Upgradováno na premium' }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      }
+    return new NextResponse(JSON.stringify({ success: true, updated }), {
+      status: 200,
+      headers: corsHeaders,
     });
-  } catch (err: any) {
-    console.error('❌ Chyba při upgradu:', err.message);
-    return NextResponse.json({ error: 'Nepodařilo se upgradovat' }, {
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("❌ Upgrade Error:", error.message);
+    } else {
+      console.error("❌ Unknown Upgrade Error:", error);
+    }
+
+    return new NextResponse(JSON.stringify({ error: 'Failed to upgrade subscription' }), {
       status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      }
+      headers: corsHeaders,
     });
   }
 }
 
-export function OPTIONS() {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    }
+    headers: corsHeaders,
   });
 }
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};

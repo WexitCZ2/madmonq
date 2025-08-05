@@ -1,40 +1,50 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY!;
-const stripe = new Stripe(stripeSecretKey);
-
 export async function POST(req: Request) {
-  try {
-    const { subscriptionId } = await req.json();
-
-    await stripe.subscriptions.cancel(subscriptionId);
-
-    return NextResponse.json({ message: 'Předplatné zrušeno' }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      }
-    });
-  } catch (err: any) {
-    console.error('❌ Chyba při rušení:', err.message);
-    return NextResponse.json({ error: 'Nepodařilo se zrušit předplatné' }, {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    return new NextResponse(JSON.stringify({ error: 'Stripe key missing' }), {
       status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      }
+      headers: corsHeaders,
+    });
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+
+  const { subscriptionId } = await req.json();
+
+  try {
+    const deleted = await stripe.subscriptions.cancel(subscriptionId);
+
+    return new NextResponse(JSON.stringify({ success: true, deleted }), {
+      status: 200,
+      headers: corsHeaders,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("❌ Cancel Error:", error.message);
+    } else {
+      console.error("❌ Unknown Cancel Error:", error);
+    }
+
+    return new NextResponse(JSON.stringify({ error: 'Failed to cancel subscription' }), {
+      status: 500,
+      headers: corsHeaders,
     });
   }
 }
 
-export function OPTIONS() {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    }
+    headers: corsHeaders,
   });
 }
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};
