@@ -1,7 +1,23 @@
 import Stripe from 'stripe';
 import { NextRequest, NextResponse } from 'next/server';
 
-// POST request (vytvoření subscription)
+// ✅ CORS hlavičky
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};
+
+// ✅ CORS preflight handler
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+}
+
+// ✅ POST request - vytvoření subscription session
 export async function POST(req: NextRequest) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   const basicPriceId = process.env.STRIPE_PRICE_ID_BASIC;
@@ -18,11 +34,12 @@ export async function POST(req: NextRequest) {
   const stripe = new Stripe(stripeSecretKey);
 
   try {
-    const body = await req.json();
-    const { plan } = body as { plan: 'basic' | 'premium' };
+    const body = (await req.json()) as { plan: 'basic' | 'premium' };
 
-    const selectedPriceId = plan === 'premium' ? premiumPriceId : basicPriceId;
+    const selectedPriceId =
+      body.plan === 'premium' ? premiumPriceId : basicPriceId;
 
+    // ✅ Vytvoření session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -36,10 +53,20 @@ export async function POST(req: NextRequest) {
       cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io/cancel',
     });
 
-    return new NextResponse(JSON.stringify({ url: session.url }), {
-      status: 200,
-      headers: corsHeaders,
-    });
+    // ✅ Získání subscription ID
+    const sessionWithSubs = await stripe.checkout.sessions.retrieve(session.id);
+    const subscriptionId = sessionWithSubs.subscription;
+
+    return new NextResponse(
+      JSON.stringify({
+        url: session.url,
+        subscriptionId, // 🔑 vracíme pro správu (cancel, upgrade, downgrade)
+      }),
+      {
+        status: 200,
+        headers: corsHeaders,
+      }
+    );
   } catch (error) {
     console.error("❌ Stripe error:", error);
     return new NextResponse(JSON.stringify({ error: 'Subscription failed' }), {
@@ -48,18 +75,3 @@ export async function POST(req: NextRequest) {
     });
   }
 }
-
-// CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: corsHeaders,
-  });
-}
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Content-Type': 'application/json',
-};
