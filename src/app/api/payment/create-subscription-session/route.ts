@@ -9,7 +9,10 @@ const corsHeaders = {
 };
 
 export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders });
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
   const premiumPriceId = process.env.STRIPE_PRICE_ID_PREMIUM;
 
   if (!stripeSecretKey || !basicPriceId || !premiumPriceId) {
-    return new NextResponse(JSON.stringify({ error: 'Stripe key or price IDs missing' }), {
+    return new NextResponse(JSON.stringify({ error: 'Stripe konfigurace chybí' }), {
       status: 500,
       headers: corsHeaders,
     });
@@ -27,27 +30,28 @@ export async function POST(req: NextRequest) {
   const stripe = new Stripe(stripeSecretKey);
 
   try {
-    const { plan } = (await req.json()) as { plan: 'basic' | 'premium' };
-    const priceId = plan === 'premium' ? premiumPriceId : basicPriceId;
+    const body = await req.json();
+    const { plan } = body as { plan: 'basic' | 'premium' };
+
+    const selectedPriceId = plan === 'premium' ? premiumPriceId : basicPriceId;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{
+        price: selectedPriceId,
+        quantity: 1,
+      }],
       mode: 'subscription',
       success_url: 'https://highs-wondrous-site-2bcc15.webflow.io/success',
       cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io/cancel',
     });
 
-    const retrieved = await stripe.checkout.sessions.retrieve(session.id);
-    const subscriptionId = retrieved.subscription;
-
-    return new NextResponse(JSON.stringify({ url: session.url, subscriptionId }), {
+    return new NextResponse(JSON.stringify({ url: session.url }), {
       status: 200,
       headers: corsHeaders,
     });
   } catch (error) {
-    console.error("❌ Subscription error:", error);
-    return new NextResponse(JSON.stringify({ error: 'Subscription failed' }), {
+    return new NextResponse(JSON.stringify({ error: 'Chyba při vytváření předplatného' }), {
       status: 500,
       headers: corsHeaders,
     });
