@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: corsHeaders,
     });
-  } catch (error) {
+  } catch {
     return new NextResponse(JSON.stringify({ error: 'Chyba při vytváření předplatného' }), {
       status: 500,
       headers: corsHeaders,

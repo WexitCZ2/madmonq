@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       JSON.stringify({ subscriptionId: session.subscription }),
       { status: 200, headers: corsHeaders }
     );
-  } catch (error) {
+  } catch {
     return new NextResponse(JSON.stringify({ error: 'Failed to retrieve session' }), {
       status: 500,
       headers: corsHeaders,
