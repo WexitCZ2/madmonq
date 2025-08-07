@@ -25,7 +25,15 @@ export async function POST(req: Request) {
 
     console.log("✅ Login OK:", data);
 
-    return new Response(JSON.stringify({ message: "Login OK", session: data.session }), {
+    return new Response(JSON.stringify({
+      message: "Login OK",
+      session: {
+        access_token: data.session.access_token,
+        user: {
+          email: data.session.user.email
+        }
+      }
+    }), {
       status: 200,
       headers: {
         "Access-Control-Allow-Origin": origin,
@@ -34,6 +42,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json"
       }
     });
+    
 
   } catch (err: unknown) {
     console.error("❌ Server chyba:", err);
@@ -59,3 +68,4 @@ export async function OPTIONS() {
     }
   });
 }
+
