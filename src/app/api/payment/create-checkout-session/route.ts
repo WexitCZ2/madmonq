@@ -32,8 +32,8 @@ export async function POST() {
         },
       ],
       mode: 'payment',
-      success_url: 'https://highs-wondrous-site-2bcc15.webflow.io/success',
-      cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io/cancel',
+      success_url: 'https://highs-wondrous-site-2bcc15.webflow.io',
+      cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io',
     });
 
     return new NextResponse(JSON.stringify({ url: session.url }), {
