@@ -1,13 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(req: Request) {
-  console.log("✅ Backend přijal request");
-
   const origin = req.headers.get('origin') || '*';
 
   try {
-    const { email, password } = await req.json();
-    console.log("📩 Email:", email, "| Password:", password);
+    const { email, password, name } = await req.json();
+    console.log("📩 Registrace:", email, name);
 
     const { data, error } = await supabase.auth.signUp({ email, password });
 
@@ -24,7 +22,16 @@ export async function POST(req: Request) {
       });
     }
 
-    console.log("✅ Supabase registrace OK:", data);
+    // 🔥 Uložit jméno do tabulky profiles (upsert = vloží nebo aktualizuje)
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({ email, name });
+
+    if (profileError) {
+      console.error("❌ Chyba při ukládání do profiles:", profileError.message);
+    }
+
+    console.log("✅ Registrace OK");
     return new Response(JSON.stringify({ message: 'Registrace OK', data }), {
       status: 200,
       headers: {
@@ -35,13 +42,8 @@ export async function POST(req: Request) {
       }
     });
 
-} catch (err: unknown) {
-    if (err instanceof Error) {
-      console.error("❌ Serverová chyba:", err.message);
-    } else {
-      console.error("❌ Neznámá chyba:", err);
-    }
-
+  } catch (err: unknown) {
+    console.error("❌ Serverová chyba:", err);
     return new Response(JSON.stringify({ error: "Chyba při zpracování požadavku" }), {
       status: 500,
       headers: {

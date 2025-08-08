@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       session: {
         access_token: data.session.access_token,
         user: {
+          id: data.session.user.id, // ✅ Přidáváme ID
           email: data.session.user.email
         }
       }
@@ -42,7 +43,6 @@ export async function POST(req: Request) {
         "Content-Type": "application/json"
       }
     });
-    
 
   } catch (err: unknown) {
     console.error("❌ Server chyba:", err);
@@ -68,4 +68,3 @@ export async function OPTIONS() {
     }
   });
 }
-
