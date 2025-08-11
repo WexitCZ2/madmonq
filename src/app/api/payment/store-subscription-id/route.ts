@@ -1,8 +1,13 @@
+// src/app/api/payment/store-subscription-id/route.ts
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type StoreSubscriptionBody = {
+  sessionId: string;
+};
 
 function corsHeaders(origin: string) {
   return {
@@ -26,18 +31,17 @@ export async function POST(req: Request) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // 🔒 Tvrdé ověření envů s jasnou hláškou
     if (!stripeSecret) throw new Error('Missing STRIPE_SECRET_KEY');
     if (!supabaseUrl) throw new Error('Missing SUPABASE_URL');
     if (!supabaseServiceKey) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
 
-    // ⚠️ Vytvářej až uvnitř handleru (ne v modulu)
-    const stripe = new Stripe(stripeSecret); // necháme default API verzi (auto)
+    // Vytvářej klienty až uvnitř handleru
+    const stripe = new Stripe(stripeSecret); // ❗️bez apiVersion → vezme výchozí
     const supabaseServer = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth
+    // Auth z Bearer tokenu
     const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: corsHeaders(origin),
@@ -53,16 +57,16 @@ export async function POST(req: Request) {
       });
     }
 
-    const { sessionId } = await req.json();
-    if (!sessionId) {
+    const body = (await req.json()) as StoreSubscriptionBody;
+    if (!body?.sessionId) {
       return new Response(JSON.stringify({ error: 'Missing sessionId' }), {
         status: 400,
         headers: corsHeaders(origin),
       });
     }
 
-    // Stripe session -> subscriptionId
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    // Ze Stripe session vytáhneme subscriptionId
+    const session = await stripe.checkout.sessions.retrieve(body.sessionId);
     const subscriptionId =
       typeof session.subscription === 'string'
         ? session.subscription
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Ulož do profiles podle auth user.id (ne email)
+    // Ulož do profiles podle auth user.id (ne podle emailu)
     const { error: upErr } = await supabaseServer
       .from('profiles')
       .update({ subscription_id: subscriptionId })
@@ -93,9 +97,10 @@ export async function POST(req: Request) {
       status: 200,
       headers: corsHeaders(origin),
     });
-  } catch (err: any) {
-    console.error('❌ store-subscription-id error:', err);
-    return new Response(JSON.stringify({ error: String(err?.message || err) }), {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('❌ store-subscription-id error:', msg);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: corsHeaders(origin),
     });
