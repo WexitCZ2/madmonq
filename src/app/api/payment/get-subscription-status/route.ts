@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     const cancelAt = sub.cancel_at ? new Date(sub.cancel_at * 1000).toISOString() : null;
 
     return new NextResponse(
-      JSON.stringify({ plan, status, cancelAt }),
+      JSON.stringify({ plan, status, cancelAt, subscriptionId: sub.id }),
       { status: 200, headers: corsHeaders }
     );
   } catch (err) {

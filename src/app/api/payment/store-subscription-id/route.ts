@@ -1,67 +1,95 @@
-import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Content-Type': 'application/json',
-};
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!); // ⬅️ žádná apiVersion
+const supabaseServer = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // ⬅️ přidej do Vercel env
+);
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders });
+function corsHeaders(origin: string) {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Type': 'application/json',
+  };
 }
 
-export async function POST(req: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get('origin') || '*';
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
+}
 
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.split(" ")[1];
-
-  if (!token) {
-    return new NextResponse(JSON.stringify({ error: "Missing token" }), {
-      status: 401,
-      headers: corsHeaders,
-    });
-  }
-
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  const email = userData?.user?.email;
-
-  if (userError || !email) {
-    return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: corsHeaders,
-    });
-  }
-
-  const { sessionId } = await req.json();
+export async function POST(req: Request) {
+  const origin = req.headers.get('origin') || '*';
 
   try {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: corsHeaders(origin),
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Ověříme uživatele z JWT (OK i se service role klientem)
+    const { data: userData, error: userErr } = await supabaseServer.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: corsHeaders(origin),
+      });
+    }
+
+    const { sessionId } = await req.json();
+    if (!sessionId) {
+      return new Response(JSON.stringify({ error: 'Missing sessionId' }), {
+        status: 400,
+        headers: corsHeaders(origin),
+      });
+    }
+
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const subscriptionId = session.subscription;
-    await supabase.from("profiles").update({ subscription_id: subscriptionId }).eq("email", email);
-    
-    if (!subscriptionId) throw new Error("Subscription ID not found in session");
 
-    const { error } = await supabase
-      .from("profiles")
+    // session.subscription může být string nebo objekt
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
+
+    if (!subscriptionId) {
+      return new Response(JSON.stringify({ error: 'No subscription in session' }), {
+        status: 400,
+        headers: corsHeaders(origin),
+      });
+    }
+
+    // Uložení k profilu podle auth user.id
+    const { error: upErr } = await supabaseServer
+      .from('profiles')
       .update({ subscription_id: subscriptionId })
-      .eq("email", email);
+      .eq('id', userData.user.id);
 
-    if (error) throw error;
+    if (upErr) {
+      console.error('❌ Supabase update error:', upErr);
+      return new Response(JSON.stringify({ error: 'DB update failed' }), {
+        status: 500,
+        headers: corsHeaders(origin),
+      });
+    }
 
-    return new NextResponse(JSON.stringify({ success: true, subscriptionId }), {
+    return new Response(JSON.stringify({ success: true, subscriptionId }), {
       status: 200,
-      headers: corsHeaders,
+      headers: corsHeaders(origin),
     });
   } catch (err) {
-    console.error("❌ Error storing subscription ID:", err);
-    return new NextResponse(JSON.stringify({ error: "Failed to store subscription ID" }), {
+    console.error('❌ store-subscription-id error:', err);
+    return new Response(JSON.stringify({ error: 'Server error' }), {
       status: 500,
-      headers: corsHeaders,
+      headers: corsHeaders(origin),
     });
   }
 }
