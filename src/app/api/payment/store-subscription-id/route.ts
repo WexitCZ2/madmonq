@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const subscriptionId = session.subscription;
-
+    await supabase.from("profiles").update({ subscription_id: subscriptionId }).eq("email", email);
+    
     if (!subscriptionId) throw new Error("Subscription ID not found in session");
 
     const { error } = await supabase

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         quantity: 1,
       }],
       mode: 'subscription',
-      success_url: 'https://highs-wondrous-site-2bcc15.webflow.io',
+      success_url: 'https://highs-wondrous-site-2bcc15.webflow.io/?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://highs-wondrous-site-2bcc15.webflow.io',
     });
 
