@@ -1,11 +1,8 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!); // ⬅️ žádná apiVersion
-const supabaseServer = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ⬅️ přidej do Vercel env
-);
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 function corsHeaders(origin: string) {
   return {
@@ -25,6 +22,20 @@ export async function POST(req: Request) {
   const origin = req.headers.get('origin') || '*';
 
   try {
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    // 🔒 Tvrdé ověření envů s jasnou hláškou
+    if (!stripeSecret) throw new Error('Missing STRIPE_SECRET_KEY');
+    if (!supabaseUrl) throw new Error('Missing SUPABASE_URL');
+    if (!supabaseServiceKey) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
+
+    // ⚠️ Vytvářej až uvnitř handleru (ne v modulu)
+    const stripe = new Stripe(stripeSecret); // necháme default API verzi (auto)
+    const supabaseServer = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Auth
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -32,10 +43,8 @@ export async function POST(req: Request) {
         headers: corsHeaders(origin),
       });
     }
-
     const token = authHeader.split(' ')[1];
 
-    // Ověříme uživatele z JWT (OK i se service role klientem)
     const { data: userData, error: userErr } = await supabaseServer.auth.getUser(token);
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
@@ -52,9 +61,8 @@ export async function POST(req: Request) {
       });
     }
 
+    // Stripe session -> subscriptionId
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    // session.subscription může být string nebo objekt
     const subscriptionId =
       typeof session.subscription === 'string'
         ? session.subscription
@@ -67,7 +75,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Uložení k profilu podle auth user.id
+    // Ulož do profiles podle auth user.id (ne email)
     const { error: upErr } = await supabaseServer
       .from('profiles')
       .update({ subscription_id: subscriptionId })
@@ -85,9 +93,9 @@ export async function POST(req: Request) {
       status: 200,
       headers: corsHeaders(origin),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ store-subscription-id error:', err);
-    return new Response(JSON.stringify({ error: 'Server error' }), {
+    return new Response(JSON.stringify({ error: String(err?.message || err) }), {
       status: 500,
       headers: corsHeaders(origin),
     });
